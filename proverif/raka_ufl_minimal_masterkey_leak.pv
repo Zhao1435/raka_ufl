@@ -1,0 +1,146 @@
+(*
+   LEAK VARIANT of raka_ufl_minimal.pv — the master key is published.
+   Expected outcome: secrecy queries FAIL (attacker derives recorded session
+   keys and decrypts recorded M3). A failure here CONFIRMS the manuscript
+   claim that this PSK schedule provides no forward secrecy / no
+   post-compromise security. Correspondence queries may also fail.
+
+   M1: UAV authenticates with the pre-shared master key.
+   M2: server authenticates the transcript and contributes a fresh nonce.
+   M3: UAV sends the model update under the per-round session key.
+   M4: server acknowledges the accepted ciphertext under that session key.
+
+   Round monotonicity and timestamp validation are implementation checks and
+   are tested in the Python reference implementation.
+*)
+
+free net: channel.
+free dom: bitstring.
+free task: bitstring.
+free pid: bitstring.
+free round_id: bitstring.
+free model_version: bitstring.
+free model_hash: bitstring.
+free model_update: bitstring [private].
+free master_key: bitstring [private].
+
+free label_auth: bitstring.
+free label_session: bitstring.
+free label_upload: bitstring.
+free m1: bitstring.
+free m2: bitstring.
+free m3: bitstring.
+free m4: bitstring.
+free u2s: bitstring.
+free s2u: bitstring.
+
+fun hash(bitstring): bitstring.
+fun kdf(bitstring, bitstring): bitstring.
+fun mac(bitstring, bitstring): bitstring.
+reduc forall key: bitstring, payload: bitstring;
+  checkmac(mac(key, payload), key) = payload.
+
+fun aenc(bitstring, bitstring, bitstring, bitstring): bitstring.
+reduc forall plaintext: bitstring, key: bitstring,
+  ad: bitstring, nonce: bitstring;
+  adec(aenc(plaintext, key, ad, nonce), key, ad) = plaintext.
+
+event uav_accept_m2(bitstring).
+event server_accept_m3(bitstring).
+event uav_accept_m4(bitstring).
+(* server has accepted M1 and established the session transcript *)
+event server_accept_m1(bitstring).
+
+(* --- secrecy queries --- *)
+query attacker(model_update).
+(* authentication key AK_r must stay secret for public context values *)
+query attacker(kdf(master_key, (dom, label_auth, (task, pid, round_id)))).
+(* session key must stay secret even though the transcript id is public *)
+free tid_public: bitstring.
+query attacker(kdf(master_key, (dom, label_session, tid_public))).
+
+(* --- authentication correspondences (full four-link chain) --- *)
+query tid: bitstring;
+  inj-event(server_accept_m3(tid)) ==> inj-event(uav_accept_m2(tid)).
+query tid: bitstring;
+  inj-event(uav_accept_m4(tid)) ==> inj-event(server_accept_m3(tid)).
+query tid: bitstring;
+  inj-event(uav_accept_m2(tid)) ==> inj-event(server_accept_m1(tid)).
+
+let UAV =
+  new nonce_u: bitstring;
+  new timestamp_u: bitstring;
+  let auth_key = kdf(master_key, (dom, label_auth, task, pid, round_id)) in
+    let m1_body = (dom, m1, u2s, task, pid, round_id,
+                   timestamp_u, nonce_u, model_version, model_hash) in
+    out(net, (m1, task, pid, round_id, timestamp_u, nonce_u, model_version, model_hash,
+              mac(auth_key, m1_body)));
+
+  in(net, m2_msg: bitstring);
+    let (=m2, =task, =pid, =round_id, =timestamp_u, timestamp_s: bitstring,
+        =nonce_u, nonce_s: bitstring, tid: bitstring,
+        =model_version, =model_hash, tag2: bitstring) = m2_msg in
+   let expected_tid = hash((dom, task, pid, round_id, timestamp_u,
+                            timestamp_s, nonce_u, nonce_s, model_version, model_hash)) in
+  if expected_tid = tid then
+    let m2_body = (dom, m2, s2u, task, pid, round_id, timestamp_u, timestamp_s,
+                  nonce_u, nonce_s, tid, model_version, model_hash) in
+  let verified_m2 = checkmac(tag2, auth_key) in
+  if verified_m2 = m2_body then
+  event uav_accept_m2(tid);
+  let session_key = kdf(master_key, (dom, label_session, tid)) in
+   let upload_ad = (dom, label_upload, task, pid, round_id, tid, model_version, model_hash) in
+  new upload_nonce: bitstring;
+  let ciphertext = aenc(model_update, session_key,
+                         upload_ad, upload_nonce) in
+   out(net, (m3, task, pid, round_id, tid, model_version, model_hash, ciphertext));
+
+  in(net, m4_msg: bitstring);
+    let (=m4, =task, =pid, =round_id, =tid, payload_hash: bitstring,
+         =model_version, =model_hash, tag4: bitstring) = m4_msg in
+   (* code alignment: the client rejects a receipt bound to a different
+      ciphertext — raka_ufl_minimal.py accept_server_ack compares
+      ack.payload_hash against sha256(nonce_aead || ct) of the pending update *)
+   if payload_hash = hash(ciphertext) then
+   let m4_body = (dom, m4, s2u, task, pid, round_id, tid,
+                 model_version, model_hash, payload_hash) in
+  let verified_m4 = checkmac(tag4, session_key) in
+  if verified_m4 = m4_body then
+    event uav_accept_m4(tid).
+
+let FS =
+  in(net, m1_msg: bitstring);
+   let (=m1, =task, =pid, =round_id, =model_version, =model_hash, timestamp_u: bitstring,
+       nonce_u: bitstring, tag1: bitstring) = m1_msg in
+  let auth_key = kdf(master_key, (dom, label_auth, task, pid, round_id)) in
+    let m1_body = (dom, m1, u2s, task, pid, round_id, timestamp_u, nonce_u,
+                  model_version, model_hash) in
+  let verified_m1 = checkmac(tag1, auth_key) in
+  if verified_m1 = m1_body then
+  new timestamp_s: bitstring;
+  new nonce_s: bitstring;
+   let tid = hash((dom, task, pid, round_id, timestamp_u,
+                  timestamp_s, nonce_u, nonce_s, model_version, model_hash)) in
+    event server_accept_m1(tid);
+    let m2_body = (dom, m2, s2u, task, pid, round_id, timestamp_u, timestamp_s,
+                  nonce_u, nonce_s, tid, model_version, model_hash) in
+    out(net, (m2, task, pid, round_id, timestamp_u, timestamp_s, nonce_u, nonce_s,
+             tid, model_version, model_hash, mac(auth_key, m2_body)));
+
+  in(net, m3_msg: bitstring);
+   let (=m3, =task, =pid, =round_id, =tid, =model_version, =model_hash, ciphertext: bitstring) = m3_msg in
+  let session_key = kdf(master_key, (dom, label_session, tid)) in
+   let upload_ad = (dom, label_upload, task, pid, round_id, tid, model_version, model_hash) in
+  let recovered_update = adec(ciphertext, session_key, upload_ad) in
+  if recovered_update = model_update then
+  event server_accept_m3(tid);
+  let payload_hash = hash(ciphertext) in
+   let m4_body = (dom, m4, s2u, task, pid, round_id, tid,
+                  model_version, model_hash, payload_hash) in
+    out(net, (m4, task, pid, round_id, tid, payload_hash, model_version, model_hash,
+              mac(session_key, m4_body))).
+
+let Leak = out(net, master_key).
+
+process
+  (UAV | FS | Leak)

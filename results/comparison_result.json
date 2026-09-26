@@ -1,0 +1,376 @@
+{
+  "config": {
+    "clients": 4,
+    "rounds": 3,
+    "vector_size": 16,
+    "seed": 20260924
+  },
+  "capability_matrix": {
+    "B0-plain": {
+      "round_binding": false,
+      "model_context_binding": false,
+      "acceptance_receipt": false,
+      "idempotent_retransmission": false,
+      "revocation": false,
+      "dropout_tolerance": false,
+      "server_sees_plaintext": true,
+      "forward_secrecy": false,
+      "update_confidentiality": false,
+      "authentication": false
+    },
+    "B1-secure-channel": {
+      "round_binding": false,
+      "model_context_binding": false,
+      "acceptance_receipt": false,
+      "idempotent_retransmission": false,
+      "revocation": false,
+      "dropout_tolerance": false,
+      "server_sees_plaintext": true,
+      "forward_secrecy": false,
+      "update_confidentiality": true,
+      "authentication": true
+    },
+    "B2-composite-aka": {
+      "round_binding": false,
+      "model_context_binding": false,
+      "acceptance_receipt": false,
+      "idempotent_retransmission": false,
+      "revocation": false,
+      "dropout_tolerance": false,
+      "server_sees_plaintext": true,
+      "forward_secrecy": false,
+      "update_confidentiality": true,
+      "authentication": true
+    },
+    "B2p-pmap-port": {
+      "round_binding": false,
+      "model_context_binding": false,
+      "acceptance_receipt": false,
+      "idempotent_retransmission": false,
+      "revocation": false,
+      "dropout_tolerance": false,
+      "server_sees_plaintext": true,
+      "forward_secrecy": false,
+      "update_confidentiality": true,
+      "authentication": true
+    },
+    "B3-raka-ufl": {
+      "round_binding": true,
+      "model_context_binding": true,
+      "acceptance_receipt": true,
+      "idempotent_retransmission": true,
+      "revocation": true,
+      "dropout_tolerance": false,
+      "server_sees_plaintext": true,
+      "forward_secrecy": false,
+      "update_confidentiality": true,
+      "authentication": true
+    }
+  },
+  "normal_run": [
+    {
+      "scheme": "B0-plain",
+      "rounds": [
+        {
+          "round_id": 1,
+          "global_model_l2": 0.11846416986776323
+        },
+        {
+          "round_id": 2,
+          "global_model_l2": 0.22537808317341954
+        },
+        {
+          "round_id": 3,
+          "global_model_l2": 0.32186788993177434
+        }
+      ],
+      "final_model": [
+        -0.037519447919553355,
+        0.0316618840823197,
+        0.008258699333105446,
+        -0.09803912473406415,
+        -0.11013352176279313,
+        0.000190701836493096,
+        -0.03452682086633376,
+        -0.09104984721422872,
+        0.02661529684535216,
+        0.11408943710177495,
+        0.019450003139545265,
+        0.0780911807791472,
+        0.1371470688142579,
+        0.0974927126214737,
+        0.07232700512220801,
+        0.12708509585907507
+      ],
+      "total_messages": 12,
+      "total_bytes": 3001,
+      "crypto_ops": {
+        "hkdf": 0,
+        "hmac": 0,
+        "aead_enc": 0,
+        "aead_dec": 0,
+        "sha256": 0
+      },
+      "crypto_ops_total": 0,
+      "mean_client_round_ms": 0.0016833340244678159,
+      "final_model_l2": 0.32186788993177434
+    },
+    {
+      "scheme": "B1-secure-channel",
+      "rounds": [
+        {
+          "round_id": 1,
+          "global_model_l2": 0.11846416986776323
+        },
+        {
+          "round_id": 2,
+          "global_model_l2": 0.22537808317341954
+        },
+        {
+          "round_id": 3,
+          "global_model_l2": 0.32186788993177434
+        }
+      ],
+      "final_model": [
+        -0.037519447919553355,
+        0.0316618840823197,
+        0.008258699333105446,
+        -0.09803912473406415,
+        -0.11013352176279313,
+        0.000190701836493096,
+        -0.03452682086633376,
+        -0.09104984721422872,
+        0.02661529684535216,
+        0.11408943710177495,
+        0.019450003139545265,
+        0.0780911807791472,
+        0.1371470688142579,
+        0.0974927126214737,
+        0.07232700512220801,
+        0.12708509585907507
+      ],
+      "total_messages": 36,
+      "total_bytes": 4537,
+      "crypto_ops": {
+        "hkdf": 48,
+        "hmac": 48,
+        "aead_enc": 12,
+        "aead_dec": 12,
+        "sha256": 0
+      },
+      "crypto_ops_total": 120,
+      "mean_client_round_ms": 0.07448333265832237,
+      "final_model_l2": 0.32186788993177434
+    },
+    {
+      "scheme": "B2-composite-aka",
+      "rounds": [
+        {
+          "round_id": 1,
+          "global_model_l2": 0.11846416986776323
+        },
+        {
+          "round_id": 2,
+          "global_model_l2": 0.22537808317341954
+        },
+        {
+          "round_id": 3,
+          "global_model_l2": 0.32186788993177434
+        }
+      ],
+      "final_model": [
+        -0.037519447919553355,
+        0.0316618840823197,
+        0.008258699333105446,
+        -0.09803912473406415,
+        -0.11013352176279313,
+        0.000190701836493096,
+        -0.03452682086633376,
+        -0.09104984721422872,
+        0.02661529684535216,
+        0.11408943710177495,
+        0.019450003139545265,
+        0.0780911807791472,
+        0.1371470688142579,
+        0.0974927126214737,
+        0.07232700512220801,
+        0.12708509585907507
+      ],
+      "total_messages": 36,
+      "total_bytes": 4537,
+      "crypto_ops": {
+        "hkdf": 48,
+        "hmac": 48,
+        "aead_enc": 12,
+        "aead_dec": 12,
+        "sha256": 0
+      },
+      "crypto_ops_total": 120,
+      "mean_client_round_ms": 0.019608333483726408,
+      "final_model_l2": 0.32186788993177434
+    },
+    {
+      "scheme": "B2p-pmap-port",
+      "rounds": [
+        {
+          "round_id": 1,
+          "global_model_l2": 0.11846416986776323
+        },
+        {
+          "round_id": 2,
+          "global_model_l2": 0.22537808317341954
+        },
+        {
+          "round_id": 3,
+          "global_model_l2": 0.32186788993177434
+        }
+      ],
+      "final_model": [
+        -0.037519447919553355,
+        0.0316618840823197,
+        0.008258699333105446,
+        -0.09803912473406415,
+        -0.11013352176279313,
+        0.000190701836493096,
+        -0.03452682086633376,
+        -0.09104984721422872,
+        0.02661529684535216,
+        0.11408943710177495,
+        0.019450003139545265,
+        0.0780911807791472,
+        0.1371470688142579,
+        0.0974927126214737,
+        0.07232700512220801,
+        0.12708509585907507
+      ],
+      "total_messages": 48,
+      "total_bytes": 4961,
+      "crypto_ops": {
+        "hkdf": 0,
+        "hmac": 72,
+        "aead_enc": 12,
+        "aead_dec": 12,
+        "sha256": 96
+      },
+      "crypto_ops_total": 192,
+      "mean_client_round_ms": 0.09433333282989527,
+      "final_model_l2": 0.32186788993177434
+    },
+    {
+      "scheme": "B3-raka-ufl",
+      "rounds": [
+        {
+          "round_id": 1,
+          "global_model_l2": 0.1184641698677212
+        },
+        {
+          "round_id": 2,
+          "global_model_l2": 0.22537808317331928
+        },
+        {
+          "round_id": 3,
+          "global_model_l2": 0.3218678899317649
+        }
+      ],
+      "final_model": [
+        -0.037519447919357136,
+        0.03166188408178571,
+        0.008258699333214282,
+        -0.09803912473378573,
+        -0.11013352176271429,
+        0.00019070183657142942,
+        -0.034526820866285717,
+        -0.09104984721421427,
+        0.026615296845142855,
+        0.11408943710164285,
+        0.01945000313935714,
+        0.07809118077942857,
+        0.13714706881457142,
+        0.09749271262157143,
+        0.07232700512221428,
+        0.12708509585914285
+      ],
+      "total_messages": 48,
+      "total_bytes": 6656,
+      "crypto_ops": {
+        "hkdf": 48,
+        "hmac": 72,
+        "aead_enc": 12,
+        "aead_dec": 12,
+        "sha256": 48
+      },
+      "crypto_ops_total": 192,
+      "mean_client_round_ms": 0.11268333279682945,
+      "final_model_l2": 0.3218678899317649
+    }
+  ],
+  "T1_stale_context": [
+    {
+      "scheme": "B0-plain",
+      "stale_update_accepted": true,
+      "aggregation_l2_vs_reference": 0.04121423489496945,
+      "aggregated_clients": 4
+    },
+    {
+      "scheme": "B1-secure-channel",
+      "stale_update_accepted": true,
+      "aggregation_l2_vs_reference": 0.04121423489496945,
+      "aggregated_clients": 4
+    },
+    {
+      "scheme": "B2-composite-aka",
+      "stale_update_accepted": true,
+      "aggregation_l2_vs_reference": 0.04121423489496945,
+      "aggregated_clients": 4
+    },
+    {
+      "scheme": "B2p-pmap-port",
+      "stale_update_accepted": true,
+      "aggregation_l2_vs_reference": 0.04121423489496945,
+      "aggregated_clients": 4
+    },
+    {
+      "scheme": "B3-raka-ufl",
+      "stale_update_accepted": false,
+      "aggregation_l2_vs_reference": 0.0,
+      "aggregated_clients": 3
+    }
+  ],
+  "T2_lost_receipt_retransmission": [
+    {
+      "scheme": "B0-plain",
+      "retransmission_counted_twice": true,
+      "aggregation_l2_vs_reference": 0.027773726325449586,
+      "victim_weight_after": 0.25,
+      "victim_weight_expected": 0.14285714285714285
+    },
+    {
+      "scheme": "B1-secure-channel",
+      "retransmission_counted_twice": true,
+      "aggregation_l2_vs_reference": 0.027773726325449586,
+      "victim_weight_after": 0.25,
+      "victim_weight_expected": 0.14285714285714285
+    },
+    {
+      "scheme": "B2-composite-aka",
+      "retransmission_counted_twice": true,
+      "aggregation_l2_vs_reference": 0.027773726325449586,
+      "victim_weight_after": 0.25,
+      "victim_weight_expected": 0.14285714285714285
+    },
+    {
+      "scheme": "B2p-pmap-port",
+      "retransmission_counted_twice": true,
+      "aggregation_l2_vs_reference": 0.027773726325449586,
+      "victim_weight_after": 0.25,
+      "victim_weight_expected": 0.14285714285714285
+    },
+    {
+      "scheme": "B3-raka-ufl",
+      "retransmission_counted_twice": false,
+      "aggregation_l2_vs_reference": 0.0,
+      "victim_weight_after": 0.14285714285714285,
+      "victim_weight_expected": 0.14285714285714285
+    }
+  ]
+}
