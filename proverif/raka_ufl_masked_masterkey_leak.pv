@@ -1,0 +1,182 @@
+(*
+   ProVerif 2.05 model of the RAKA-UFL minimal protocol with the
+   round-derived dynamic-pseudonym extension (raka_ufl_minimal_privacy.py).
+
+   Wire M1 carries masked_id = digest XOR pad, where
+     digest = SHA256(real_id)            (stable 32-byte identity)
+     pad    = HMAC(K_i, task‖r‖"pid-mask") (round-derived, keyed)
+
+   Symbolic abstractions:
+   - XOR is abstracted as an opaque mask/unmask constructor pair (knowing the
+     pad is necessary and sufficient to recover the digest); XOR's algebraic
+     properties are out of scope for this model.
+   - The server's per-round precomputed lookup table is abstracted by the
+     pattern match "let =identity_digest = unmask(masked, pad)": only a
+     pseudonym formed with the correct pad resolves to the registered digest,
+     so forged or cross-round pseudonyms fail before tag verification.
+   - Single UAV/server session, as in raka_ufl_minimal.pv; the registry
+     (multi-UAV table) is an implementation structure outside this model.
+
+   Queries:
+   1-3. secrecy of model_update, AK_r, SK_r (as in the base model);
+   4.   secrecy of the identity digest (pseudonym content protection);
+   5.   secrecy of the pseudonym pad;
+   6.   strong secrecy (noninterference) of the identity digest — the
+        attacker's observations must not depend on the digest, which is the
+        prerequisite for cross-round unlinkability;
+   7-9. the authentication correspondence chain on tid (unchanged).
+*)
+
+free net: channel.
+free dom: bitstring.
+free task: bitstring.
+free round_id: bitstring.
+free model_version: bitstring.
+free model_hash: bitstring.
+free model_update: bitstring [private].
+free master_key: bitstring [private].
+
+(* LEAK VARIANT: the master key is published to the attacker.
+   Expected result: all secrecy queries FAIL (no forward secrecy /
+   post-compromise security), confirming the claimed boundary. *)
+
+(* stable identity digest; never appears on the wire *)
+free identity_digest: bitstring [private].
+
+free label_auth: bitstring.
+free label_session: bitstring.
+free label_upload: bitstring.
+free label_pidmask: bitstring.
+free m1: bitstring.
+free m2: bitstring.
+free m3: bitstring.
+free m4: bitstring.
+free u2s: bitstring.
+free s2u: bitstring.
+
+fun hash(bitstring): bitstring.
+fun kdf(bitstring, bitstring): bitstring.
+fun mac(bitstring, bitstring): bitstring.
+reduc forall key: bitstring, payload: bitstring;
+  checkmac(mac(key, payload), key) = payload.
+
+(* abstract XOR-mask: mask(digest, pad); only the pad holder can recover *)
+fun mask(bitstring, bitstring): bitstring.
+reduc forall d: bitstring, p: bitstring;
+  unmask(mask(d, p), p) = d.
+
+fun aenc(bitstring, bitstring, bitstring, bitstring): bitstring.
+reduc forall plaintext: bitstring, key: bitstring,
+  ad: bitstring, nonce: bitstring;
+  adec(aenc(plaintext, key, ad, nonce), key, ad) = plaintext.
+
+event uav_accept_m2(bitstring).
+event server_accept_m3(bitstring).
+event uav_accept_m4(bitstring).
+event server_accept_m1(bitstring).
+
+(* --- secrecy queries --- *)
+query attacker(model_update).
+query attacker(kdf(master_key, (dom, label_auth, (task, identity_digest, round_id)))).
+free tid_public: bitstring.
+query attacker(kdf(master_key, (dom, label_session, tid_public))).
+
+(* --- pseudonym protection --- *)
+query attacker(identity_digest).
+query attacker(mac(master_key, (label_pidmask, task, round_id))).
+(* strong secrecy: observations must not depend on the digest value *)
+noninterf identity_digest.
+
+(* --- authentication correspondences --- *)
+query tid: bitstring;
+  inj-event(server_accept_m3(tid)) ==> inj-event(uav_accept_m2(tid)).
+query tid: bitstring;
+  inj-event(uav_accept_m4(tid)) ==> inj-event(server_accept_m3(tid)).
+query tid: bitstring;
+  inj-event(uav_accept_m2(tid)) ==> inj-event(server_accept_m1(tid)).
+
+let UAV =
+  new nonce_u: bitstring;
+  new timestamp_u: bitstring;
+  (* dynamic pseudonym: round-derived pad, no nonce on the wire *)
+  let pad = mac(master_key, (label_pidmask, task, round_id)) in
+  let masked_id = mask(identity_digest, pad) in
+  let auth_key = kdf(master_key, (dom, label_auth, (task, identity_digest, round_id))) in
+    let m1_body = (dom, m1, u2s, task, identity_digest, round_id,
+                   timestamp_u, nonce_u, model_version, model_hash) in
+    out(net, (m1, task, masked_id, round_id, timestamp_u, nonce_u,
+              model_version, model_hash, mac(auth_key, m1_body)));
+
+  in(net, m2_msg: bitstring);
+    (* M2 wire echoes the pseudonym, not the digest; the tag binds the digest *)
+    let (=m2, =task, =masked_id, =round_id, =timestamp_u, timestamp_s: bitstring,
+        =nonce_u, nonce_s: bitstring, tid: bitstring,
+        =model_version, =model_hash, tag2: bitstring) = m2_msg in
+   let expected_tid = mac(master_key, (dom, task, identity_digest, round_id, timestamp_u,
+                            timestamp_s, nonce_u, nonce_s, model_version, model_hash)) in
+  if expected_tid = tid then
+    let m2_body = (dom, m2, s2u, task, identity_digest, round_id, timestamp_u, timestamp_s,
+                  nonce_u, nonce_s, tid, model_version, model_hash) in
+  let verified_m2 = checkmac(tag2, auth_key) in
+  if verified_m2 = m2_body then
+  event uav_accept_m2(tid);
+  let session_key = kdf(master_key, (dom, label_session, tid)) in
+   let upload_ad = (dom, label_upload, task, identity_digest, round_id, tid, model_version, model_hash) in
+  new upload_nonce: bitstring;
+  let ciphertext = aenc(model_update, session_key,
+                         upload_ad, upload_nonce) in
+   out(net, (m3, task, masked_id, round_id, tid, model_version, model_hash, ciphertext));
+
+  in(net, m4_msg: bitstring);
+    let (=m4, =task, =masked_id, =round_id, =tid, payload_hash: bitstring,
+         =model_version, =model_hash, tag4: bitstring) = m4_msg in
+   if payload_hash = hash(ciphertext) then
+   let m4_body = (dom, m4, s2u, task, identity_digest, round_id, tid,
+                 model_version, model_hash, payload_hash) in
+  let verified_m4 = checkmac(tag4, session_key) in
+  if verified_m4 = m4_body then
+    event uav_accept_m4(tid).
+
+let FS =
+  in(net, m1_msg: bitstring);
+   let (=m1, =task, masked_id: bitstring, =round_id, =model_version, =model_hash,
+       timestamp_u: bitstring, nonce_u: bitstring, tag1: bitstring) = m1_msg in
+  (* server resolves the pseudonym: per-round pad, table lookup abstracted
+     by the equality check against the registered identity digest *)
+  let pad = mac(master_key, (label_pidmask, task, round_id)) in
+  let recovered_digest = unmask(masked_id, pad) in
+  if recovered_digest = identity_digest then
+  let auth_key = kdf(master_key, (dom, label_auth, (task, identity_digest, round_id))) in
+    let m1_body = (dom, m1, u2s, task, identity_digest, round_id, timestamp_u, nonce_u,
+                  model_version, model_hash) in
+  let verified_m1 = checkmac(tag1, auth_key) in
+  if verified_m1 = m1_body then
+  new timestamp_s: bitstring;
+  new nonce_s: bitstring;
+   let tid = mac(master_key, (dom, task, identity_digest, round_id, timestamp_u,
+                  timestamp_s, nonce_u, nonce_s, model_version, model_hash)) in
+    event server_accept_m1(tid);
+    let m2_body = (dom, m2, s2u, task, identity_digest, round_id, timestamp_u, timestamp_s,
+                  nonce_u, nonce_s, tid, model_version, model_hash) in
+    out(net, (m2, task, masked_id, round_id, timestamp_u, timestamp_s, nonce_u, nonce_s,
+             tid, model_version, model_hash, mac(auth_key, m2_body)));
+
+  in(net, m3_msg: bitstring);
+   let (=m3, =task, masked_id3: bitstring, =round_id, =tid, =model_version, =model_hash, ciphertext: bitstring) = m3_msg in
+  let recovered_digest3 = unmask(masked_id3, pad) in
+  if recovered_digest3 = identity_digest then
+  let session_key = kdf(master_key, (dom, label_session, tid)) in
+   let upload_ad = (dom, label_upload, task, identity_digest, round_id, tid, model_version, model_hash) in
+  let recovered_update = adec(ciphertext, session_key, upload_ad) in
+  if recovered_update = model_update then
+  event server_accept_m3(tid);
+  let payload_hash = hash(ciphertext) in
+   let m4_body = (dom, m4, s2u, task, identity_digest, round_id, tid,
+                 model_version, model_hash, payload_hash) in
+    out(net, (m4, task, masked_id, round_id, tid, payload_hash, model_version, model_hash,
+              mac(session_key, m4_body))).
+
+let Leak = out(net, master_key).
+
+process
+  (Leak | UAV | FS)

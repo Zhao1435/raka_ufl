@@ -6,8 +6,11 @@ Minimal Authenticated Protocol and Executable Evaluation"*.
 
 The protocol authenticates one UAV and one FL server per training round (M1/M2),
 derives a round-specific session key from a pre-shared master key and a
-two-nonce transcript, protects the model update with AES-GCM (M3), and confirms
-server acceptance with a ciphertext-hash-bound receipt (M4). The server accepts
+keyed two-nonce transcript, protects the model update with AES-GCM (M3), and
+confirms server acceptance with a ciphertext-hash-bound receipt (M4). Devices
+are identified on the wire by **round-derived masked pseudonyms**
+(`masked_id = SHA256(real_id) XOR HMAC(K_i, task||r||pidmask)`), resolved by
+the server through a per-round precomputed lookup table. The server accepts
 only the next expected round, handles exact duplicates idempotently within a
 bounded retry budget, and rejects stale rounds, mismatched model contexts,
 revoked devices, oversized updates, and excessive hello rates.
@@ -16,16 +19,17 @@ revoked devices, oversized updates, and excessive hello rates.
 
 | File | Role |
 |---|---|
-| `raka_ufl_minimal.py` | Core M1–M4 client/server protocol state machines |
-| `raka_ufl_fl_server.py` | Many-to-one FL server: registry, per-identity endpoints, aggregation buffer, sample-weighted FedAvg |
-| `raka_ufl_minimal_privacy.py` | Round-derived masked-identity variant (unlinkable pseudonyms, keyed transcript id) |
-| `raka_ufl_experiment.py` | Fixed-vector multi-UAV functional harness (local training, FedAvg, revocation, duplicate uploads) |
+| `raka_ufl_minimal.py` | Core M1–M4 client/server protocol state machines + masked-identity primitives |
+| `raka_ufl_masked.py` | Standard wire form: masked-identity message types and `MaskedClient` |
+| `raka_ufl_fl_server.py` | Many-to-one FL server: registry, masked resolution, per-identity endpoints, aggregation buffer, FedAvg |
+| `raka_ufl_minimal_privacy.py` | Compatibility shim (original masked-identity reference names; one-to-one demo front-end) |
+| `raka_ufl_experiment.py` | Fixed-vector multi-UAV functional harness over the masked wire form |
 | `raka_ufl_baselines.py` | Baselines B0 (plain), B1 (TLS-1.3-PSK-equivalent channel), B2 (composite AKA) |
 | `raka_ufl_pmap_port.py` | Faithful Python port of the official PMAP-D2Z Java implementation (B2p) |
 | `raka_ufl_comparison.py` | Unified comparison harness: capability matrix, overhead, T1/T2 attack traces |
-| `proverif/` | Symbolic models: baseline (6 queries), masked-identity variant (9 queries), master-key leak variant |
+| `proverif/` | Symbolic models: masked-identity model (9 queries), master-key leak variant |
 | `results/comparison_result.json` | Recorded comparison output (seed 20260924) |
-| `test_raka_ufl_minimal.py`, `test_raka_ufl_experiment.py` | Unit tests (19) |
+| `test_raka_ufl_minimal.py`, `test_raka_ufl_experiment.py` | Unit tests (19 in this repo's scope) |
 | `test_dynamic_pseudonym.py` | Masked-identity validation script (7 checks) |
 
 ## Reproduce
@@ -49,9 +53,8 @@ python -m unittest
 python test_dynamic_pseudonym.py
 
 # symbolic verification (ProVerif 2.05)
-proverif proverif/raka_ufl_minimal.pv
 proverif proverif/raka_ufl_minimal_privacy.pv
-proverif proverif/raka_ufl_minimal_masterkey_leak.pv   # expected: secrecy queries fail
+proverif proverif/raka_ufl_masked_masterkey_leak.pv   # expected: secrecy queries fail
 ```
 
 ## Scope notes (as stated in the paper)
@@ -60,9 +63,10 @@ proverif proverif/raka_ufl_minimal_masterkey_leak.pv   # expected: secrecy queri
   server, no real network and no embedded UAV platform; it demonstrates
   protocol data-path functionality and bounded admission behavior, not FL
   model accuracy, scalability, or production security.
-- The baseline construction does not provide forward secrecy (confirmed by the
-  master-key leak variant), secure aggregation, or protection against malicious
-  enrolled clients.
+- The construction does not provide forward secrecy (confirmed by the
+  master-key leak variant), secure aggregation, or protection against
+  malicious enrolled clients. Within one round the masked pseudonym is
+  deterministic by design (one transaction per device per round).
 - Baselines B1/B2 are protocol-semantics-level abstractions; B2p is a port of
   PMAP's official code with an appended AES-GCM upload segment that PMAP
   itself does not contain.

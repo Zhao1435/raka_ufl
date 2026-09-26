@@ -19,7 +19,8 @@ import time
 from typing import Iterable
 
 from raka_ufl_fl_server import FLServer, fedavg, serialize_model
-from raka_ufl_minimal import MinimalClient, ModelUpdate
+from raka_ufl_minimal import ModelUpdate
+from raka_ufl_masked import MaskedClient, WireUpdate, WireAck, WireHello
 
 # Backward-compatible alias (tests import _fedavg from this module).
 _fedavg = fedavg
@@ -91,7 +92,7 @@ class ExperimentResult:
 @dataclass
 class _ClientRecord:
     client_id: str
-    client: MinimalClient
+    client: MaskedClient
     local_target: tuple[float, ...]
     sample_count: int
     revoked: bool = False
@@ -127,7 +128,7 @@ class MultiUAVExperiment:
         for index in range(self.config.clients):
             client_id = f"uav-{index + 1}"
             master_key = secrets.token_bytes(32)
-            client = MinimalClient("fl-demo", client_id, master_key)
+            client = MaskedClient("fl-demo", client_id, master_key)
             target = tuple(
                 self.rng.uniform(-1.0, 1.0)
                 for _ in range(self.config.vector_size)
@@ -159,16 +160,19 @@ class MultiUAVExperiment:
         return sum(value * value for value in model) ** 0.5
 
     @staticmethod
-    def _message_bytes(hello, update: ModelUpdate, ack) -> int:
+    def _message_bytes(hello: WireHello, update: WireUpdate, ack: WireAck) -> int:
         return sum(len(part) if isinstance(part, bytes) else len(str(part).encode("utf-8")) for part in (
+            hello.masked_id,
             hello.nonce_u,
             hello.model_version,
             hello.model_hash,
             hello.tag,
+            update.masked_id,
             update.ciphertext,
             update.transcript_id,
             update.model_version,
             update.model_hash,
+            ack.masked_id,
             ack.payload_hash,
             ack.model_version,
             ack.model_hash,
@@ -194,10 +198,9 @@ class MultiUAVExperiment:
                 attempted += 1
                 if record.revoked:
                     revoked += 1
-                    m1 = record.client.make_hello(round_id * 1000 + index, bytes([index + 1]) * 16)
+                    m1 = record.client.make_hello_wire(round_id * 1000 + index, bytes([index + 1]) * 16)
                     try:
-                        self.fl_server.ingest_hello(
-                            record.client_id,
+                        self.fl_server.ingest_wire_hello(
                             m1,
                             now=round_id * 1000 + index,
                             timestamp_s=round_id * 1000 + index + 1,
@@ -212,28 +215,27 @@ class MultiUAVExperiment:
                 start = time.perf_counter()
                 timestamp_u = round_id * 1000 + index
                 nonce_u = bytes([index + 1]) * 16
-                m1 = record.client.make_hello(timestamp_u, nonce_u)
-                m2 = self.fl_server.ingest_hello(
-                    record.client_id,
+                m1 = record.client.make_hello_wire(timestamp_u, nonce_u)
+                m2 = self.fl_server.ingest_wire_hello(
                     m1,
                     now=timestamp_u,
                     nonce_s=bytes([round_id + 32 + index]) * 16,
                     timestamp_s=timestamp_u + 1,
                 )
-                record.client.accept_server_hello(m2, now=timestamp_u + 1)
+                record.client.accept_wire_server_hello(m2, now=timestamp_u + 1)
                 handshake_ms = (time.perf_counter() - start) * 1000
 
                 local_model = self._local_train(record)
                 payload = self._serialize_model(local_model)
                 upload_start = time.perf_counter()
-                update = record.client.encrypt_update(payload)
-                plaintext, ack, is_dup = self.fl_server.ingest_update(record.client_id, update)
+                update = record.client.encrypt_update_wire(payload)
+                plaintext, ack, is_dup = self.fl_server.ingest_wire_update(update)
                 if is_dup:
                     raise AssertionError("首次上传被误判为重复")
                 if plaintext != payload:
                     raise AssertionError("服务器解密后的模型更新不一致")
                 upload_ms = (time.perf_counter() - upload_start) * 1000
-                record.client.accept_server_ack(ack)
+                record.client.accept_wire_ack(ack)
                 if record.client.committed_round != round_id:
                     raise AssertionError("客户端轮次没有正确提交")
                 accepted += 1
@@ -243,13 +245,14 @@ class MultiUAVExperiment:
                 upload_times.append(upload_ms)
                 total_times.append((time.perf_counter() - start) * 1000)
 
-                duplicate_result, duplicate_ack, is_dup2 = self.fl_server.ingest_update(record.client_id, update)
+                duplicate_result, duplicate_ack, is_dup2 = self.fl_server.ingest_wire_update(update)
                 if not is_dup2 or duplicate_result != payload or duplicate_ack != ack:
                     raise AssertionError("重复上传没有返回一致的幂等结果")
                 duplicate_uploads += 1
                 message_count += 1
                 byte_count += (
-                    len(update.ciphertext)
+                    len(update.masked_id)
+                    + len(update.ciphertext)
                     + len(update.transcript_id)
                     + len(update.model_version.encode("utf-8"))
                     + len(update.model_hash)

@@ -28,7 +28,12 @@ from raka_ufl_minimal import (
     ModelUpdate,
     ServerAck,
     ServerHello,
+    _identity_digest,
+    _round_pad,
+    _xor32,
+    DIGEST_SIZE,
 )
+from raka_ufl_masked import WireHello, WireServerHello, WireUpdate, WireAck
 
 
 def fedavg(updates: list[tuple[int, tuple[float, ...]]]) -> tuple[float, ...]:
@@ -86,10 +91,16 @@ class FLServer:
             raise ValueError(f"吊销集合含未注册 UAV: {unknown}")
         self.global_model = tuple(0.0 for _ in range(vector_size))
         self.committed_round = 0
+        # masked-identity layer: registry key is real_id; endpoints are keyed by
+        # the identity digest and use keyed transcript ids (HMAC tid).
+        self._digests = {real_id: _identity_digest(real_id) for real_id in self.registry}
+        self._digest_to_real = {d.hex(): real_id for real_id, d in self._digests.items()}
         self._endpoints = {
-            pid: MinimalServer(task_id, pid, key)
-            for pid, key in self.registry.items()
+            d.hex(): MinimalServer(task_id, d.hex(), key, transcript_key=key)
+            for real_id, (d, key) in ((r, (self._digests[r], k)) for r, k in self.registry.items())
         }
+        self._masked_table: dict[bytes, str] = {}
+        self._masked_table_round: Optional[int] = None
         self._round_id = 0
         self._round_open = False
         self._updates: list[tuple[str, int, tuple[float, ...]]] = []
@@ -133,6 +144,64 @@ class FLServer:
             ep.model_hash = mh
         return mv, mh
 
+    def _refresh_masked_table(self, round_id: int) -> None:
+        """Per-round precomputation: masked_id -> real_id for non-revoked UAVs."""
+        if self._masked_table_round == round_id:
+            return
+        self._masked_table = {}
+        for real_id, key in self.registry.items():
+            if real_id in self._revoked:
+                continue  # revoked UAVs are unresolvable from this round on
+            pad = _round_pad(key, self.task_id, round_id)
+            self._masked_table[_xor32(self._digests[real_id], pad)] = real_id
+        self._masked_table_round = round_id
+
+    def resolve_masked_id(self, masked_id: bytes, round_id: int) -> str:
+        if len(masked_id) != DIGEST_SIZE:
+            raise ValueError("动态假名格式无效")
+        self._refresh_masked_table(round_id)
+        real_id = self._masked_table.get(masked_id)
+        if real_id is None:
+            raise ValueError("动态假名不在本轮注册表中（伪造、跨轮或已吊销）")
+        return real_id
+
+    def ingest_wire_hello(
+        self,
+        wire: WireHello,
+        now: Optional[int] = None,
+        nonce_s: Optional[bytes] = None,
+        timestamp_s: Optional[int] = None,
+    ) -> WireServerHello:
+        real_id = self.resolve_masked_id(wire.masked_id, wire.round_id)
+        canonical = ClientHello(
+            task_id=wire.task_id,
+            pid=self._digests[real_id].hex(),
+            round_id=wire.round_id,
+            timestamp_u=wire.timestamp_u,
+            nonce_u=wire.nonce_u,
+            model_version=wire.model_version,
+            model_hash=wire.model_hash,
+            tag=wire.tag,
+        )
+        m2 = self.ingest_hello(real_id, canonical, now=now, nonce_s=nonce_s, timestamp_s=timestamp_s)
+        return WireServerHello(
+            m2.task_id, wire.masked_id, m2.round_id, m2.timestamp_u,
+            m2.timestamp_s, m2.nonce_u, m2.nonce_s, m2.transcript_id,
+            m2.model_version, m2.model_hash, m2.tag,
+        )
+
+    def ingest_wire_update(self, wire: WireUpdate) -> tuple[bytes, WireAck, bool]:
+        real_id = self.resolve_masked_id(wire.masked_id, wire.round_id)
+        canonical = ModelUpdate(
+            wire.task_id, self._digests[real_id].hex(), wire.round_id,
+            wire.transcript_id, wire.model_version, wire.model_hash, wire.ciphertext,
+        )
+        plaintext, ack, is_dup = self.ingest_update(real_id, canonical)
+        return plaintext, WireAck(
+            ack.task_id, wire.masked_id, ack.round_id, ack.transcript_id,
+            ack.payload_hash, ack.model_version, ack.model_hash, ack.tag,
+        ), is_dup
+
     def ingest_hello(
         self,
         pid: str,
@@ -143,7 +212,8 @@ class FLServer:
     ) -> ServerHello:
         if pid in self._revoked:
             raise ValueError("UAV 已被服务器吊销")
-        endpoint = self._endpoints.get(pid)
+        digest_hex = self._digests[pid].hex() if pid in self._digests else pid
+        endpoint = self._endpoints.get(digest_hex)
         if endpoint is None:
             raise ValueError("未注册的 UAV")
         return endpoint.accept_client_hello(
@@ -156,7 +226,8 @@ class FLServer:
         without double-counting."""
         if pid in self._revoked:
             raise ValueError("UAV 已被服务器吊销")
-        endpoint = self._endpoints.get(pid)
+        digest_hex = self._digests[pid].hex() if pid in self._digests else pid
+        endpoint = self._endpoints.get(digest_hex)
         if endpoint is None:
             raise ValueError("未注册的 UAV")
         plaintext, ack = endpoint.receive_update(update)

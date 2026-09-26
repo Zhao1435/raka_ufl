@@ -112,7 +112,7 @@
         "sha256": 0
       },
       "crypto_ops_total": 0,
-      "mean_client_round_ms": 0.0016833340244678159,
+      "mean_client_round_ms": 0.0017666666281002108,
       "final_model_l2": 0.32186788993177434
     },
     {
@@ -159,7 +159,7 @@
         "sha256": 0
       },
       "crypto_ops_total": 120,
-      "mean_client_round_ms": 0.07448333265832237,
+      "mean_client_round_ms": 0.07203333340536726,
       "final_model_l2": 0.32186788993177434
     },
     {
@@ -206,7 +206,7 @@
         "sha256": 0
       },
       "crypto_ops_total": 120,
-      "mean_client_round_ms": 0.019608333483726408,
+      "mean_client_round_ms": 0.019299999773162806,
       "final_model_l2": 0.32186788993177434
     },
     {
@@ -253,7 +253,7 @@
         "sha256": 96
       },
       "crypto_ops_total": 192,
-      "mean_client_round_ms": 0.09433333282989527,
+      "mean_client_round_ms": 0.09406666686118115,
       "final_model_l2": 0.32186788993177434
     },
     {
@@ -291,16 +291,16 @@
         0.12708509585914285
       ],
       "total_messages": 48,
-      "total_bytes": 6656,
+      "total_bytes": 7808,
       "crypto_ops": {
         "hkdf": 48,
-        "hmac": 72,
+        "hmac": 96,
         "aead_enc": 12,
         "aead_dec": 12,
-        "sha256": 48
+        "sha256": 72
       },
-      "crypto_ops_total": 192,
-      "mean_client_round_ms": 0.11268333279682945,
+      "crypto_ops_total": 240,
+      "mean_client_round_ms": 0.14217499983715243,
       "final_model_l2": 0.3218678899317649
     }
   ],

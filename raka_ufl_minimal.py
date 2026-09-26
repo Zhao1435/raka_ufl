@@ -657,3 +657,26 @@ def _validate_model_context(model_version: str, model_hash: bytes) -> None:
         raise ValueError("model_version 必须为 1 至 128 字节")
     if not isinstance(model_hash, bytes) or len(model_hash) != MODEL_HASH_SIZE:
         raise ValueError("model_hash 必须为 32 字节 SHA-256")
+
+
+# ---------------------------------------------------------------------------
+# Round-derived masked identity primitives (standard wire identity form)
+# ---------------------------------------------------------------------------
+
+DIGEST_SIZE = 32
+
+
+def _identity_digest(real_id: str) -> bytes:
+    return hashlib.sha256(real_id.encode("utf-8")).digest()
+
+
+def _round_pad(master_key: bytes, task_id: str, round_id: int) -> bytes:
+    return hmac.new(
+        master_key,
+        b"pid-mask|" + task_id.encode("utf-8") + b"|" + round_id.to_bytes(8, "big"),
+        hashlib.sha256,
+    ).digest()
+
+
+def _xor32(a: bytes, b: bytes) -> bytes:
+    return bytes(x ^ y for x, y in zip(a, b))

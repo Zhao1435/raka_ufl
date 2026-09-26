@@ -34,7 +34,8 @@ import time
 from raka_ufl_baselines import CompositeAKA, CryptoOps, PlainChannel, SecureChannelPSK
 from raka_ufl_experiment import ExperimentConfig
 from raka_ufl_fl_server import FLServer, fedavg as _fedavg, serialize_model as _serialize_fl
-from raka_ufl_minimal import MinimalClient, MinimalServer
+from raka_ufl_minimal import MinimalServer
+from raka_ufl_masked import MaskedClient
 from raka_ufl_pmap_port import PmapD2ZSession
 
 
@@ -54,10 +55,11 @@ RAKA_UFL_CAPABILITIES = {
 
 # Protocol-logical crypto-operation count for one RAKA-UFL client round,
 # both parties, generation and verification counted separately:
-#   HKDF x4 (both sides derive AK_r and SK_r), HMAC x6 (tag1/tag2/tag4
-#   generate+verify), AEAD x2, SHA-256 x4 (tid on both sides, client-side
-#   payload hash, server-side ciphertext hash).
-RAKA_UFL_CRYPTO = CryptoOps(hkdf=4, hmac=6, aead_enc=1, aead_dec=1, sha256=4)
+#   HKDF x4 (both sides derive AK_r and SK_r), HMAC x8 (tag1/tag2/tag4
+#   generate+verify, plus the pseudonym pad on each side), AEAD x2,
+#   SHA-256 x6 (tid on both sides, client-side payload hash, server-side
+#   ciphertext hash, identity digest on each side).
+RAKA_UFL_CRYPTO = CryptoOps(hkdf=4, hmac=8, aead_enc=1, aead_dec=1, sha256=6)
 
 
 @dataclass
@@ -113,7 +115,7 @@ def run_normal(scheme: str, config: ExperimentConfig) -> dict[str, object]:
     if scheme == "B3-raka-ufl":
         # B3 runs on the real many-to-one FLServer: single server owning the
         # registry, per-identity endpoints, aggregation buffer, and FedAvg.
-        clients = [MinimalClient("fl-demo", s.pid, s.master_key) for s in specs]
+        clients = [MaskedClient("fl-demo", s.pid, s.master_key) for s in specs]
         fl = FLServer(
             "fl-demo",
             {s.pid: s.master_key for s in specs},
@@ -149,18 +151,18 @@ def run_normal(scheme: str, config: ExperimentConfig) -> dict[str, object]:
                 client.model_version = mv
                 client.model_hash = mh
                 ts = base_ts + round_id * 1000 + index
-                m1 = client.make_hello(ts, bytes([index + 1]) * 16)
-                m2 = fl.ingest_hello(spec.pid, m1, now=ts, nonce_s=bytes([round_id + 32 + index]) * 16, timestamp_s=ts + 1)
-                client.accept_server_hello(m2, now=ts + 1)
-                update = client.encrypt_update(payload)
-                plaintext, ack, is_dup = fl.ingest_update(spec.pid, update)
-                client.accept_server_ack(ack)
+                m1 = client.make_hello_wire(ts, bytes([index + 1]) * 16)
+                m2 = fl.ingest_wire_hello(m1, now=ts, nonce_s=bytes([round_id + 32 + index]) * 16, timestamp_s=ts + 1)
+                client.accept_wire_server_hello(m2, now=ts + 1)
+                update = client.encrypt_update_wire(payload)
+                plaintext, ack, is_dup = fl.ingest_wire_update(update)
+                client.accept_wire_ack(ack)
                 assert plaintext == payload and not is_dup
                 msgs = 4
                 byte_count = sum(len(p) if isinstance(p, bytes) else len(str(p).encode()) for p in (
-                    m1.nonce_u, m1.model_version, m1.model_hash, m1.tag,
-                    update.ciphertext, update.transcript_id, update.model_version, update.model_hash,
-                    ack.payload_hash, ack.model_version, ack.model_hash, ack.tag,
+                    m1.masked_id, m1.nonce_u, m1.model_version, m1.model_hash, m1.tag,
+                    update.masked_id, update.ciphertext, update.transcript_id, update.model_version, update.model_hash,
+                    ack.masked_id, ack.payload_hash, ack.model_version, ack.model_hash, ack.tag,
                 ))
                 crypto = RAKA_UFL_CRYPTO
                 accepted = True
@@ -223,17 +225,17 @@ def run_t1_b3(config: ExperimentConfig) -> dict[str, object]:
     # round 1: normal
     mv, mh = fl.start_round(1)
     for index, spec in enumerate(specs):
-        client = MinimalClient("fl-demo", spec.pid, spec.master_key)
+        client = MaskedClient("fl-demo", spec.pid, spec.master_key)
         client.model_version = mv
         client.model_hash = mh
         ts = 5000 + 1000 + index
-        m1 = client.make_hello(ts, bytes([index + 1]) * 16)
-        m2 = fl.ingest_hello(spec.pid, m1, now=ts, nonce_s=bytes([1 + 64 + index]) * 16, timestamp_s=ts + 1)
-        client.accept_server_hello(m2, now=ts + 1)
+        m1 = client.make_hello_wire(ts, bytes([index + 1]) * 16)
+        m2 = fl.ingest_wire_hello(m1, now=ts, nonce_s=bytes([1 + 64 + index]) * 16, timestamp_s=ts + 1)
+        client.accept_wire_server_hello(m2, now=ts + 1)
         payload = serialize_model(local_train(initial, spec, config))
-        update = client.encrypt_update(payload)
-        _, ack, _ = fl.ingest_update(spec.pid, update)
-        client.accept_server_ack(ack)
+        update = client.encrypt_update_wire(payload)
+        _, ack, _ = fl.ingest_wire_update(update)
+        client.accept_wire_ack(ack)
     r1 = fl.close_round()
 
     # round 2: victim holds the stale (round-1) model context
@@ -242,7 +244,7 @@ def run_t1_b3(config: ExperimentConfig) -> dict[str, object]:
     for index, spec in enumerate(specs):
         trained = local_train(initial, spec, config) if index == victim else local_train(r1.global_model, spec, config)
         payload = serialize_model(trained)
-        client = MinimalClient("fl-demo", spec.pid, spec.master_key, committed_round=1)
+        client = MaskedClient("fl-demo", spec.pid, spec.master_key, committed_round=1)
         if index == victim:
             client.model_version = "global-round-1"
             client.model_hash = hashlib.sha256(serialize_model(initial)).digest()
@@ -251,12 +253,12 @@ def run_t1_b3(config: ExperimentConfig) -> dict[str, object]:
             client.model_hash = mh2
         ts = 5000 + 2000 + index
         try:
-            m1 = client.make_hello(ts, bytes([index + 1]) * 16)
-            m2 = fl.ingest_hello(spec.pid, m1, now=ts, nonce_s=bytes([2 + 64 + index]) * 16, timestamp_s=ts + 1)
-            client.accept_server_hello(m2, now=ts + 1)
-            update = client.encrypt_update(payload)
-            plaintext, ack, _ = fl.ingest_update(spec.pid, update)
-            client.accept_server_ack(ack)
+            m1 = client.make_hello_wire(ts, bytes([index + 1]) * 16)
+            m2 = fl.ingest_wire_hello(m1, now=ts, nonce_s=bytes([2 + 64 + index]) * 16, timestamp_s=ts + 1)
+            client.accept_wire_server_hello(m2, now=ts + 1)
+            update = client.encrypt_update_wire(payload)
+            plaintext, ack, _ = fl.ingest_wire_update(update)
+            client.accept_wire_ack(ack)
             assert plaintext == payload
         except ValueError:
             continue  # rejected at admission (model-context mismatch)
@@ -351,20 +353,20 @@ def run_t2_b3(config: ExperimentConfig) -> dict[str, object]:
     for index, spec in enumerate(specs):
         trained = local_train(initial, spec, config)
         payload = serialize_model(trained)
-        client = MinimalClient("fl-demo", spec.pid, spec.master_key)
+        client = MaskedClient("fl-demo", spec.pid, spec.master_key)
         client.model_version = mv
         client.model_hash = mh
         ts = 9000 + index
-        m1 = client.make_hello(ts, bytes([index + 1]) * 16)
-        m2 = fl.ingest_hello(spec.pid, m1, now=ts, nonce_s=bytes([index + 96]) * 16, timestamp_s=ts + 1)
-        client.accept_server_hello(m2, now=ts + 1)
-        update = client.encrypt_update(payload)
-        plaintext, ack, _ = fl.ingest_update(spec.pid, update)
+        m1 = client.make_hello_wire(ts, bytes([index + 1]) * 16)
+        m2 = fl.ingest_wire_hello(m1, now=ts, nonce_s=bytes([index + 96]) * 16, timestamp_s=ts + 1)
+        client.accept_wire_server_hello(m2, now=ts + 1)
+        update = client.encrypt_update_wire(payload)
+        plaintext, ack, _ = fl.ingest_wire_update(update)
         assert plaintext == payload
-        client.accept_server_ack(ack)
+        client.accept_wire_ack(ack)
         if index == victim:
             # receipt lost: retransmit the byte-identical update
-            plaintext2, ack2, is_dup = fl.ingest_update(spec.pid, update)
+            plaintext2, ack2, is_dup = fl.ingest_wire_update(update)
             idempotent = plaintext2 == payload and ack2 == ack and is_dup
             counted_twice = not idempotent
     report = fl.close_round()
