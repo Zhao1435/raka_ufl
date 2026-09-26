@@ -27,8 +27,12 @@ revoked devices, oversized updates, and excessive hello rates.
 | `raka_ufl_baselines.py` | Baselines B0 (plain), B1 (TLS-1.3-PSK-equivalent channel), B2 (composite AKA) |
 | `raka_ufl_pmap_port.py` | Faithful Python port of the official PMAP-D2Z Java implementation (B2p) |
 | `raka_ufl_comparison.py` | Unified comparison harness: capability matrix, overhead, T1/T2 attack traces |
+| `benchmark_timing.py` | Repeated wall-clock timing per client round for all five schemes (50 reps after warm-up) |
+| `benchmark_tls_psk.py` | Real TLS 1.3 PSK handshake measurement via OpenSSL s_server/s_client behind a byte-counting TCP proxy |
+| `lossy_retransmission.py` | T2 generalized to a Bernoulli lossy link: exact enumeration of loss patterns |
 | `proverif/` | Symbolic models: masked-identity model (9 queries), master-key leak variant |
 | `results/comparison_result.json` | Recorded comparison output (seed 20260924) |
+| `results/timing_result.json`, `results/tls_psk_result.json`, `results/lossy_t2_result.json` | Recorded benchmark outputs |
 | `test_raka_ufl_minimal.py`, `test_raka_ufl_experiment.py` | Unit tests (19 in this repo's scope) |
 | `test_dynamic_pseudonym.py` | Masked-identity validation script (7 checks) |
 
@@ -47,6 +51,15 @@ python raka_ufl_experiment.py --clients 8 --rounds 5 --vector-size 16 \
 
 # five-scheme comparison (B0/B1/B2/B2p/B3) with T1/T2 attack traces
 python raka_ufl_comparison.py
+
+# repeated per-client-round timing (50 repetitions, 3 warm-up runs discarded)
+python benchmark_timing.py
+
+# real TLS 1.3 PSK handshake bytes/timing (requires openssl on PATH)
+python benchmark_tls_psk.py
+
+# lossy-link generalization of T2 (exact enumeration over loss patterns)
+python lossy_retransmission.py
 
 # unit tests and masked-identity validation
 python -m unittest

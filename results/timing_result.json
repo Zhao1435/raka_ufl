@@ -1,0 +1,42 @@
+[
+  {
+    "scheme": "B0-plain",
+    "repetitions": 50,
+    "warmup_discarded": 3,
+    "client_rounds_per_run": 12,
+    "mean_client_round_ms": 0.0013421666593179302,
+    "std_client_round_ms": 0.0003058454250310519
+  },
+  {
+    "scheme": "B1-secure-channel",
+    "repetitions": 50,
+    "warmup_discarded": 3,
+    "client_rounds_per_run": 12,
+    "mean_client_round_ms": 0.02235666668639169,
+    "std_client_round_ms": 0.0050122418288322725
+  },
+  {
+    "scheme": "B2-composite-aka",
+    "repetitions": 50,
+    "warmup_discarded": 3,
+    "client_rounds_per_run": 12,
+    "mean_client_round_ms": 0.022354999987328483,
+    "std_client_round_ms": 0.0054666324289262425
+  },
+  {
+    "scheme": "B2p-pmap-port",
+    "repetitions": 50,
+    "warmup_discarded": 3,
+    "client_rounds_per_run": 12,
+    "mean_client_round_ms": 0.10294800000792748,
+    "std_client_round_ms": 0.006614318838882771
+  },
+  {
+    "scheme": "B3-raka-ufl",
+    "repetitions": 50,
+    "warmup_discarded": 3,
+    "client_rounds_per_run": 12,
+    "mean_client_round_ms": 0.16903716665031726,
+    "std_client_round_ms": 0.019359174102802044
+  }
+]

@@ -1,0 +1,18 @@
+{
+  "p=0.05": {
+    "receipt_loss_probability": 0.05,
+    "clients": 4,
+    "expected_double_counted_updates_per_round": 0.20000000000000004,
+    "prob_at_least_one_double_count": 0.18549374999999996,
+    "baseline_expected_l2_vs_reference": 0.006882748261064992,
+    "raka_ufl_expected_l2_vs_reference": 0.0
+  },
+  "p=0.1": {
+    "receipt_loss_probability": 0.1,
+    "clients": 4,
+    "expected_double_counted_updates_per_round": 0.39999999999999997,
+    "prob_at_least_one_double_count": 0.3439000000000001,
+    "baseline_expected_l2_vs_reference": 0.01275667733136742,
+    "raka_ufl_expected_l2_vs_reference": 0.0
+  }
+}

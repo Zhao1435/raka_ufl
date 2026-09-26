@@ -1,0 +1,14 @@
+{
+  "stack": "OpenSSL 3.5.6 7 Apr 2026 (Library: OpenSSL 3.5.6 7 Apr 2026)",
+  "ciphersuite": "TLS_AES_128_GCM_SHA256",
+  "session_tickets": "disabled (-num_tickets 0)",
+  "payload_bytes": 350,
+  "connections_ok": 200,
+  "connections_total": 200,
+  "handshake_c2s_bytes_mean": 1580.0,
+  "handshake_s2c_bytes_mean": 1313.0,
+  "handshake_total_bytes_mean": 2893.0,
+  "app_record_c2s_bytes_mean": 24.0,
+  "handshake_ms_mean": 1.460182999976496,
+  "handshake_ms_std": 0.2864098421685203
+}
