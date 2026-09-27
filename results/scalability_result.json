@@ -1,0 +1,56 @@
+[
+  {
+    "registered_uavs": 50,
+    "rounds": 3,
+    "masked_table_precompute_ms_per_round": [
+      0.421,
+      0.403,
+      0.4
+    ],
+    "server_round_ms": [
+      28.23,
+      27.62,
+      27.34
+    ],
+    "server_ms_per_client_round": 0.5546,
+    "aggregation_buffer_entries": 50,
+    "completed_cache_entries": 3,
+    "python_heap_peak_mb": 0.18
+  },
+  {
+    "registered_uavs": 100,
+    "rounds": 3,
+    "masked_table_precompute_ms_per_round": [
+      0.776,
+      0.79,
+      0.79
+    ],
+    "server_round_ms": [
+      53.15,
+      52.93,
+      53.77
+    ],
+    "server_ms_per_client_round": 0.5328,
+    "aggregation_buffer_entries": 100,
+    "completed_cache_entries": 3,
+    "python_heap_peak_mb": 0.32
+  },
+  {
+    "registered_uavs": 500,
+    "rounds": 3,
+    "masked_table_precompute_ms_per_round": [
+      3.88,
+      3.946,
+      3.982
+    ],
+    "server_round_ms": [
+      269.58,
+      270.57,
+      272.04
+    ],
+    "server_ms_per_client_round": 0.5415,
+    "aggregation_buffer_entries": 500,
+    "completed_cache_entries": 3,
+    "python_heap_peak_mb": 1.65
+  }
+]

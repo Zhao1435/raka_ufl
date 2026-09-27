@@ -30,6 +30,8 @@ revoked devices, oversized updates, and excessive hello rates.
 | `benchmark_timing.py` | Repeated wall-clock timing per client round for all five schemes (50 reps after warm-up) |
 | `benchmark_tls_psk.py` | Real TLS 1.3 PSK handshake measurement via OpenSSL s_server/s_client behind a byte-counting TCP proxy |
 | `lossy_retransmission.py` | T2 generalized to a Bernoulli lossy link: exact enumeration of loss patterns |
+| `real_fl_experiment.py` | Real FL workload validation: MNIST LeNet through the unmodified protocol wire path (data: ModelScope mirror of ylecun/mnist, parquet under `data/`, not tracked) |
+| `scalability_test.py` | Sequential intake at 50/100/500 registered UAVs: masked-table precompute, per-round server time, heap usage |
 | `proverif/` | Symbolic models: masked-identity model (9 queries), master-key leak variant |
 | `results/comparison_result.json` | Recorded comparison output (seed 20260924) |
 | `results/timing_result.json`, `results/tls_psk_result.json`, `results/lossy_t2_result.json` | Recorded benchmark outputs |

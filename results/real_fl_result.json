@@ -1,0 +1,41 @@
+{
+  "config": {
+    "clients": 4,
+    "rounds": 3,
+    "local_epochs": 1,
+    "batch": 64,
+    "lr": 0.01,
+    "momentum": 0.9,
+    "seed": 20260924,
+    "device": "cuda",
+    "model": "LeNet-style CNN",
+    "params": 44426
+  },
+  "rounds": [
+    {
+      "round_id": 1,
+      "accepted_clients": 4,
+      "payload_bytes": 683249,
+      "test_accuracy": 0.8556,
+      "transparency_l2_vs_direct_fedavg": 0.0
+    },
+    {
+      "round_id": 2,
+      "accepted_clients": 4,
+      "payload_bytes": 683424,
+      "test_accuracy": 0.9527,
+      "transparency_l2_vs_direct_fedavg": 0.0
+    },
+    {
+      "round_id": 3,
+      "accepted_clients": 4,
+      "payload_bytes": 683423,
+      "test_accuracy": 0.969,
+      "transparency_l2_vs_direct_fedavg": 0.0
+    }
+  ],
+  "protocol_ms_per_client_round": {
+    "mean": 6.542924999848765,
+    "max": 12.605100000655511
+  }
+}
